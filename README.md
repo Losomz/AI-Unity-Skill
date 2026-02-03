@@ -1,3 +1,41 @@
-# AI Agent Skills
+# Unity AI Agent Skill
 
-基于OpenAI Function Calling标准的AI Agent Skills系统。
+基于OpenAI Function Calling标准的Unity开发AI Agent Skills系统，提供全面的Unity项目开发支持。
+
+## 项目概述
+
+本项目是一个专门为Unity开发设计的AI Agent技能，允许AI助手直接与Unity项目交互，执行场景管理、组件编程、资源处理和项目构建等操作。
+
+## 核心能力
+
+- 🎮 **场景操作**: 创建、编辑、删除Unity场景及游戏对象
+- 🧩 **组件编程**: 脚本开发、组件配置、交互逻辑实现
+- 🎨 **资源管理**: 预制体、材质、动画等Unity资源的处理
+- 🚀 **构建部署**: 项目构建配置、多平台支持、自动化部署
+
+## 技术特点
+
+- 兼容Unity 2022.1及以上版本
+- 基于agentskills.io标准规范
+- 支持C#脚本自动生成
+- 可与现有CI/CD流程集成
+
+## 快速开始
+
+1. 将技能配置添加到你的AI Agent系统
+2. 指定Unity项目路径
+3. 开始使用自然语言指令进行Unity开发
+
+## 使用示例
+
+```
+"请创建一个名为Player的立方体，并添加移动控制脚本"
+"将当前场景配置为可运行状态，设置分辨率为1920x1080"
+"为游戏对象添加物理材质，设置摩擦系数为0.5"
+```
+
+## 兼容性
+
+- Unity Hub 3.0+
+- Unity Editor 2022.1+
+- Windows 10/11, macOS 10.15+, Ubuntu 20.04+
