@@ -14,9 +14,10 @@
 - 使用Python脚本自动化注入过程
 
 ### 模板系统
-- assets/templates/AIService.cs：C#服务脚本模板
-- 遵循agentskills规范的组织结构
-- 支持模板的轻松修改和扩展
+### 模板系统
+- assets/templates：包含完整的Unity项目目录结构镜像
+- 自动递归复制：所有在 `assets/templates` 下的文件和目录都会被复制到目标项目根目录
+- 易于扩展：只需在 `templates` 目录下添加文件即可自动支持注入，无需修改代码
 
 ## 项目结构
 
@@ -35,7 +36,15 @@ unity-agent-skill/
 
 ## 使用方法
 
-### 方法1：直接使用Python脚本
+### 使用脚本
+直接运行 Python 注入脚本：
+
+```bash
+python scripts/unity_injector.py --project-path "Unity项目路径"
+```
+
+> **依赖说明**：本 Skill 需要 Python 环境。请确保运行环境中已安装 Python 3.6+。
+如果已确认安装Python环境，可以直接运行脚本：
 ```bash
 python scripts/unity_injector.py --project-path "Unity项目路径"
 ```
@@ -57,13 +66,14 @@ python test_injector.py --use-current-dir
 
 ## 注入结果
 
-成功注入后，将在Unity项目中创建：
+成功注入后，会将 `assets/templates` 下的所有内容合并到目标项目中。
+默认包含：
 ```
 Assets/Editor/AI_Internal/AIService.cs
 ```
 
 ### C#服务脚本模板内容
-位于 `assets/templates/AIService.cs`：
+位于 `assets/templates/Assets/Editor/AI_Internal/AIService.cs`：
 ```csharp
 using UnityEngine;
 using UnityEditor;
