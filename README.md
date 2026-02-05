@@ -58,6 +58,16 @@ Copy-Item -Path ".agent/skills/AI-Unity-Skill/assets/templates/*" `
 curl.exe -X POST http://127.0.0.1:8081/execute `
   -d '{"command":"CreateCube","x":0,"y":1,"z":0}'
 
+# 引用资产（SetReference）
+curl.exe -X POST http://127.0.0.1:8081/execute `
+  -d '{
+    "command":"SetReference",
+    "targetObjectId":-1234, 
+    "componentType":"YourScript",
+    "fieldName":"prefabField",
+    "assetPath":"Assets/Prefabs/Enemy.prefab"
+  }'
+
 # 健康检查
 curl.exe http://127.0.0.1:8081
 ```
