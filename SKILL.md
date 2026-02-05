@@ -37,7 +37,7 @@ Copy-Item -Path "<skill-folder>/assets/templates/*" -Destination "<unity-project
 ```
 
 This creates:
-- `Assets/Editor/AI_Internal/AIService.cs` - HTTP server and command executor
+- `Assets/Editor/AgentBridge/AgentBridgeServer.cs` - HTTP server and command executor
 
 ### Step 2: Wait for Unity Compilation
 
@@ -110,7 +110,7 @@ AI Agent → HTTP POST (JSON) → Unity HTTP Server (8081)
 
 ### Server not starting
 - Check Unity Console for compilation errors
-- Verify `Assets/Editor/AI_Internal/AIService.cs` exists
+- Verify `Assets/Editor/AgentBridge/AgentBridgeServer.cs` exists
 - Restart Unity if needed
 
 ### "Unknown command" error

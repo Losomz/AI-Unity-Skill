@@ -1,16 +1,16 @@
-using UnityEngine;
-using UnityEditor;
 using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Net;
 using System.Text;
 using System.Threading;
-using System.IO;
-using System.Collections.Generic;
+using UnityEditor;
+using UnityEngine;
 
-namespace AI_Internal
+namespace Editor.AgentBridge
 {
     [InitializeOnLoad]
-    public class AIBridgeServer
+    public class AgentBridgeServer
     {
         private static HttpListener listener;
         private static Thread listenerThread;
@@ -21,7 +21,7 @@ namespace AI_Internal
         private static Queue<Action> mainThreadQueue = new Queue<Action>();
         private static object queueLock = new object();
 
-        static AIBridgeServer()
+        static AgentBridgeServer()
         {
             // Unity 启动时自动初始化
             EditorApplication.update += Initialize;
@@ -103,9 +103,13 @@ namespace AI_Internal
                     var context = listener.GetContext();
                     ThreadPool.QueueUserWorkItem(_ => HandleRequest(context));
                 }
+                catch (ThreadAbortException)
+                {
+                    // Unity 重新编译时会终止线程，这是正常行为，静默处理
+                }
                 catch (Exception e)
                 {
-                    if (isRunning) Debug.LogError($"[AI Bridge] Error: {e.Message}");
+                    if (isRunning) Debug.LogError($"[AgentBridge] Error: {e.Message}");
                 }
             }
         }
@@ -159,134 +163,56 @@ namespace AI_Internal
         {
             try
             {
-                // 简单解析 command 字段
-                string command = ParseField(json, "command");
-                Debug.Log(json);
-                Debug.Log($"[AI Bridge] Executing command: {command}");
+                Debug.Log($"[AI Bridge] Received: {json}");
                 
-                if (command == "CreateCube")
+                // 在主线程执行命令
+                string result = null;
+                Exception error = null;
+                var resetEvent = new ManualResetEventSlim(false);
+                
+                lock (queueLock)
                 {
-                    // 解析参数
-                    float x = ParseFloat(json, "x");
-                    float y = ParseFloat(json, "y");
-                    float z = ParseFloat(json, "z");
-                    
-                    Debug.Log($"[AI Bridge] Parameters: x={x}, y={y}, z={z}");
-                    
-                    // 在主线程执行
-                    string result = null;
-                    Exception error = null;
-                    var resetEvent = new ManualResetEventSlim(false);
-                    
-                    lock (queueLock)
+                    mainThreadQueue.Enqueue(() =>
                     {
-                        mainThreadQueue.Enqueue(() =>
+                        try
                         {
-                            try
-                            {
-                                GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                                cube.transform.position = new Vector3(x, y, z);
-                                
-                                int id = cube.GetInstanceID();
-                                string name = cube.name;
-                                
-                                Debug.Log($"[AI Bridge] Created Cube at ({x}, {y}, {z}), ID: {id}");
-                                
-                                result = $"{{\"status\":\"success\",\"id\":{id},\"name\":\"{name}\"}}";
-                            }
-                            catch (Exception ex)
-                            {
-                                error = ex;
-                            }
-                            finally
-                            {
-                                resetEvent.Set();
-                            }
-                        });
-                    }
-                    
-                    // 等待主线程执行完成（最多5秒）
-                    if (resetEvent.Wait(5000))
-                    {
-                        if (error != null)
-                        {
-                            return $"{{\"status\":\"error\",\"message\":\"{error.Message}\"}}";
+                            // 委托给 CommandExecutor
+                            result = Commands.CommandExecutor.Execute(json);
                         }
-                        return result;
-                    }
-                    else
+                        catch (Exception ex)
+                        {
+                            error = ex;
+                        }
+                        finally
+                        {
+                            resetEvent.Set();
+                        }
+                    });
+                }
+                
+                // 等待主线程执行完成（最多5秒）
+                if (resetEvent.Wait(5000))
+                {
+                    if (error != null)
                     {
-                        return "{\"status\":\"error\",\"message\":\"Execution timeout\"}";
+                        Debug.LogError($"[AI Bridge] Command error: {error.Message}");
+                        return $"{{\"status\":\"error\",\"message\":\"{error.Message}\"}}";
                     }
+                    return result;
                 }
                 else
                 {
-                    return $"{{\"status\":\"error\",\"message\":\"Unknown command: {command}\"}}";
+                    return "{\"status\":\"error\",\"message\":\"Execution timeout\"}";
                 }
             }
             catch (Exception e)
             {
+                Debug.LogError($"[AI Bridge] Unexpected error: {e.Message}");
                 return $"{{\"status\":\"error\",\"message\":\"{e.Message}\"}}";
             }
         }
 
-        // 简单的 JSON 字段解析（支持有引号和无引号两种格式）
-        private static string ParseField(string json, string fieldName)
-        {
-            // 尝试方式1: "fieldName":"value" (标准 JSON)
-            string pattern1 = $"\"{fieldName}\":\"";
-            int start = json.IndexOf(pattern1);
-            
-            if (start >= 0)
-            {
-                start += pattern1.Length;
-                int end = json.IndexOf("\"", start);
-                if (end >= 0)
-                {
-                    return json.Substring(start, end - start);
-                }
-            }
-            
-            // 尝试方式2: fieldName:value (无引号格式，curl 在 Windows 上可能产生)
-            string pattern2 = $"{fieldName}:";
-            start = json.IndexOf(pattern2);
-            
-            if (start >= 0)
-            {
-                start += pattern2.Length;
-                
-                // 跳过可能的空格
-                while (start < json.Length && json[start] == ' ')
-                {
-                    start++;
-                }
-                
-                // 找到值的结束位置（逗号或右花括号）
-                int end = json.IndexOfAny(new char[] { ',', '}' }, start);
-                
-                if (end >= 0)
-                {
-                    string value = json.Substring(start, end - start).Trim();
-                    return value;
-                }
-            }
-            
-            return "";
-        }
-
-        private static float ParseFloat(string json, string fieldName)
-        {
-            string pattern = $"\"{fieldName}\":";
-            int start = json.IndexOf(pattern);
-            if (start < 0) return 0;
-            
-            start += pattern.Length;
-            int end = json.IndexOfAny(new char[] { ',', '}' }, start);
-            
-            string value = json.Substring(start, end - start).Trim();
-            float.TryParse(value, out float result);
-            
-            return result;
-        }
+        // 已移除：ParseField, ParseFloat
+        // 现在使用 JsonUtility 在 CommandExecutor 中解析
     }
 }

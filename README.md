@@ -1,127 +1,149 @@
-# Unity AI Service Injection Skill
+# Unity AgentBridge Skill
 
-一个符合agentskills.io规范的Unity项目AI服务注入工具，通过Python脚本将AI服务动态注入到Unity项目中。
+AI Agent 与 Unity Editor 之间的 HTTP 通信桥梁，实现实时远程控制 Unity 场景。
 
-## 项目概述
+## 架构概览
 
-本项目实现了Unity AI服务注入功能，允许AI Agent将服务脚本动态部署到Unity项目中。项目遵循[agentskills.io](https://agentskills.io)标准规范，提供简洁而强大的Unity项目自动化能力。
-
-## 核心功能
-
-### 服务注入
-- 创建Unity项目所需的目录结构（Assets/Editor/AI_Internal）
-- 在指定目录中生成基础的AI服务脚本
-- 使用Python脚本自动化注入过程
-
-### 模板系统
-### 模板系统
-- assets/templates：包含完整的Unity项目目录结构镜像
-- 自动递归复制：所有在 `assets/templates` 下的文件和目录都会被复制到目标项目根目录
-- 易于扩展：只需在 `templates` 目录下添加文件即可自动支持注入，无需修改代码
-
-## 项目结构
-
-符合agentskills规范的项目结构：
 ```
-unity-agent-skill/
-├── SKILL.md                    # 技能说明文档（符合agentskills规范）
-├── README.md                   # 项目说明文档
-├── scripts/
-│   └── unity_injector.py      # 主要的Python注入工具
-├── assets/
-│   └── templates/
-│       └── AIService.cs        # C#服务脚本模板
-└── test_injector.py           # 测试脚本
+AI Agent → HTTP POST → AgentBridge Server (8081)
+                            ↓
+                    Main Thread Queue
+                            ↓
+                    CommandExecutor (switch-case)
+                            ↓
+                    独立命令类 (CreateCubeCommand 等)
+                            ↓
+                    Unity API 执行
+                            ↓
+                    JSON Response → AI Agent
 ```
+
+## 核心组件
+
+### 1. AgentBridgeServer.cs
+HTTP Server 核心，负责：
+- 监听 `http://127.0.0.1:8081`
+- 主线程调度 (Queue + EditorApplication.update)
+- 请求/响应处理
+
+### 2. CommandExecutor.cs
+命令路由器，负责：
+- JSON 规范化（处理 curl 无引号格式）
+- switch-case 路由到具体命令
+- 统一错误处理
+
+### 3. 独立命令类
+每个命令一个文件：
+- `CreateCubeCommand.cs` - 创建立方体
+- 未来扩展...
+
+### 4. CommandParams.cs
+强类型参数定义：
+- `CreateCubeParams` - 立方体参数 (x, y, z)
+- `CommandResult` - 统一返回格式
 
 ## 使用方法
 
-### 使用脚本
-直接运行 Python 注入脚本：
+### 部署到 Unity 项目
 
-```bash
-python scripts/unity_injector.py --project-path "Unity项目路径"
+```powershell
+Copy-Item -Path ".agent/skills/AI-Unity-Skill/assets/templates/*" `
+  -Destination "YourUnityProject" -Recurse -Force
 ```
 
-> **依赖说明**：本 Skill 需要 Python 环境。请确保运行环境中已安装 Python 3.6+。
-如果已确认安装Python环境，可以直接运行脚本：
-```bash
-python scripts/unity_injector.py --project-path "Unity项目路径"
+### 发送命令
+
+```powershell
+# 创建立方体
+curl.exe -X POST http://127.0.0.1:8081/execute `
+  -d '{"command":"CreateCube","x":0,"y":1,"z":0}'
+
+# 健康检查
+curl.exe http://127.0.0.1:8081
 ```
 
-### 方法2：使用测试脚本
-```bash
-python test_injector.py
-```
-（这将创建一个模拟Unity项目并测试注入功能）
+## 添加新命令
 
-### 方法3：使用当前目录测试
-```bash
-python test_injector.py --use-current-dir
-```
-（这将使用当前目录作为模拟Unity项目进行测试）
-
-### Python脚本参数
-- `--project-path`：Unity项目根目录路径（必需）
-
-## 注入结果
-
-成功注入后，会将 `assets/templates` 下的所有内容合并到目标项目中。
-默认包含：
-```
-Assets/Editor/AI_Internal/AIService.cs
-```
-
-### C#服务脚本模板内容
-位于 `assets/templates/Assets/Editor/AI_Internal/AIService.cs`：
+### 1. 创建参数类 (CommandParams.cs)
 ```csharp
-using UnityEngine;
-using UnityEditor;
-
-namespace AI_Internal
-{
-    public class AIService
+namespace Editor.AgentBridge.Commands {
+    [Serializable]
+    public class YourCommandParams : CommandParams
     {
-        // 基础服务类，后续可扩展
+        public int yourParam;
     }
 }
 ```
 
-## 技术特点
+### 2. 创建命令类 (YourCommand.cs)
+```csharp
+namespace Editor.AgentBridge.Commands.Impl {
+    public class YourCommand
+    {
+        public string Execute(string json)
+        {
+            var param = JsonUtility.FromJson<YourCommandParams>(json);
+            // 实现逻辑
+            return CommandResult.Success().ToJson();
+        }
+    }
+}
+```
 
-- 符合agentskills.io标准规范
-- 简洁的Python注入工具
-- 模块化的模板系统
-- 支持命令行参数
-- 包含完整的错误处理和项目验证
+### 3. 注册到 Executor (CommandExecutor.cs)
+```csharp
+switch (baseParams.command)
+{
+    case "CreateCube":
+        return ExecuteCreateCube(json);
+    
+    case "YourCommand":  // 添加这里
+        return ExecuteYourCommand(json);
+}
 
-## 系统要求
+private static string ExecuteYourCommand(string json)
+{
+    var command = new YourCommand();
+    return command.Execute(json);
+}
+```
 
-- Python 3.6或更高版本
-- 有效的Unity项目
-- 对目标Unity项目目录的写权限
+## 技术细节
 
-## 故障排除
+### JSON 解析
+- 使用 Unity 内置 `JsonUtility`（零依赖）
+- 自动规范化 curl 的无引号格式
+- 强类型参数类确保类型安全
 
-1. **Python未找到错误**：确保Python已安装并添加到系统PATH
-2. **权限错误**：确保有权限在Unity项目目录中创建文件和文件夹
-3. **无效的Unity项目**：确保指定的路径包含有效的Unity项目结构（Assets和ProjectSettings文件夹）
-4. **模板文件未找到**：确保 `assets/templates/AIService.cs` 文件存在
+### 主线程安全
+- 所有 Unity API 调用在主线程执行
+- Queue + ManualResetEventSlim 同步机制
+- 5秒执行超时保护
 
-## 下一步
+### 错误处理
+- 三层错误捕获（HTTP、CommandExecutor、具体命令）
+- 统一 JSON 错误格式
+- Console 详细日志
 
-注入成功后，您可以在Unity编辑器中打开项目，并查看注入的服务脚本。该脚本位于Assets/Editor/AI_Internal/AIService.cs。您可以根据需要修改此脚本以添加更多功能。
+## 目录结构
 
-## 符合agentskills规范
+```
+Assets/Editor/AgentBridge/
+├── AgentBridgeServer.cs      # HTTP Server
+└── Commands/
+    ├── CommandParams.cs      # 参数定义
+    ├── CommandExecutor.cs    # 路由器
+    └── Impl/
+        └── CreateCubeCommand.cs  # 命令实现
+```
 
-项目结构完全符合agentskills规范：
-- 包含必需的 `SKILL.md` 文件
-- 使用标准的 `scripts/` 目录存放可执行代码
-- 使用标准的 `assets/` 目录存放模板资源
-- 文件引用使用相对路径
+## 未来扩展
 
-## 参考资源
+- [ ] 反射自动发现命令类
+- [ ] JSON Schema 参数验证
+- [ ] 命令权限控制
+- [ ] 异步命令支持
 
-- [Agent Skills 官方文档](https://agentskills.io)
-- [Agent Skills 规范说明](https://agentskills.io/specification.md)
-- [Unity 编辑器脚本API文档](https://docs.unity3d.com/Manual/EditorScripting.html)
+## 许可证
+
+MIT License
