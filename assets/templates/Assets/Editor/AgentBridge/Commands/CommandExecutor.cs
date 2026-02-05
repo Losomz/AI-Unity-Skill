@@ -38,6 +38,9 @@ namespace Editor.AgentBridge.Commands
                     case "CreateCube":
                         return new CreateCubeCommand().Execute(json);
                     
+                    case "SetReference":
+                        return new SetReferenceCommand().Execute(json);
+                    
                     default:
                         return CommandResult.Error($"Unknown command: {baseParams.command}").ToJson();
                 }
@@ -89,7 +92,7 @@ namespace Editor.AgentBridge.Commands
         /// </summary>
         public static string GetCommandList()
         {
-            return "{\"commands\":[\"CreateCube\"]}";
+            return "{\"commands\":[\"CreateCube\", \"SetReference\"]}";
         }
     }
 }
